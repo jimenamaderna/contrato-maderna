@@ -138,7 +138,7 @@ export async function POST(request) {
           doc.render(variables)
           buffer = doc.getZip().generate({ type: 'nodebuffer' })
         } catch (templateError) {
-          console.error('Error en template:', templateError.message)
+          console.error('ERROR TEMPLATE DETALLADO:', templateError.message, templateError.stack, JSON.stringify(templateError.properties))
           // Si falla el template, generar básico
           buffer = null
         }
@@ -215,3 +215,4 @@ async function generarWordBasico(v) {
   })
   return await Packer.toBuffer(doc)
 }
+
