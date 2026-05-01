@@ -69,7 +69,7 @@ async function generarWordBasico(datos) {
     campo('Ciudad', inmueble?.ciudad),
     campo('Provincia', inmueble?.pcia),
     campo('Tipo', inmueble?.tipo),
-    campo('Ocupantes', inmueble?.ocupantes),
+    campo('Ocupantes', datos.inmueble_ocupantes_texto || datos.inmueble?.ocupantes),
     new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: 'LOCADOR', bold: true, size: 26, font: 'Arial' })] }),
     campo('Nombre', locador?.nom),
     campo('DNI', locador?.dni),
@@ -100,3 +100,4 @@ async function generarWordBasico(datos) {
 
   return await Packer.toBuffer(doc)
 }
+
