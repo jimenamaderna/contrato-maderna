@@ -12,7 +12,8 @@ export default function Contrato() {
   const [error, setError] = useState('')
 
   const [data, setData] = useState({
-    inmueble: { dom: '', ciudad: '', pcia: 'Buenos Aires', tipo: 'departamento', destino: 'vivienda', scub: '', stot: '', partida: '', nomen: '', ocupantes: '' },
+    inmueble: { dom: '', ciudad: '', pcia: 'Buenos Aires', tipo: 'departamento', destino: 'vivienda', scub: '', stot: '', partida: '', nomen: '' },
+    ocupantes: [{ nom: '', dni: '' }],
     locador: { nom: '', dni: '', cuit: '', ec: 'soltero/a', dom: '', email: '', tel: '' },
     locatario: { nom: '', dni: '', cuit: '', ec: 'soltero/a', dom: '', email: '', tel: '' },
     garante: { tipo: 'inmueble_pba', nom: '', dni: '', dom: '' },
@@ -33,6 +34,30 @@ export default function Contrato() {
     setData(p => ({ ...p, [section]: { ...p[section], [key]: val } }))
   }
 
+  function updOcupante(idx, key, val) {
+    setData(p => {
+      const ocs = [...p.ocupantes]
+      ocs[idx] = { ...ocs[idx], [key]: val }
+      return { ...p, ocupantes: ocs }
+    })
+  }
+
+  function agregarOcupante() {
+    setData(p => ({ ...p, ocupantes: [...p.ocupantes, { nom: '', dni: '' }] }))
+  }
+
+  function quitarOcupante(idx) {
+    setData(p => ({ ...p, ocupantes: p.ocupantes.filter((_, i) => i !== idx) }))
+  }
+
+  // Genera el texto de ocupantes para el contrato: "Juan Perez DNI 12.345.678, ..."
+  function textoOcupantes() {
+    return data.ocupantes
+      .filter(o => o.nom.trim())
+      .map(o => o.nom.trim() + (o.dni.trim() ? ' DNI ' + o.dni.trim() : ''))
+      .join(', ')
+  }
+
   const steps = ['Inmueble','Locador','Locatario','Garantia','Contrato','Clausulas','Descargar']
 
   async function descargar(formato) {
@@ -40,12 +65,14 @@ export default function Contrato() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { router.push('/login'); return }
     try {
+      // Armamos el payload con el texto de ocupantes ya generado
+      const payload = { ...data, inmueble_ocupantes_texto: textoOcupantes() }
       const res = await fetch('/api/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ datos: data, formato })
+        body: JSON.stringify({ datos: payload, formato })
       })
-      if (res.status === 401) { setError('Seson expirada. Iniciá sesion.'); router.push('/login'); return }
+      if (res.status === 401) { setError('Sesion expirada. Inicia sesion.'); router.push('/login'); return }
       if (res.status === 403) { setError('Sin contratos disponibles. Compra un plan.'); return }
       if (!res.ok) { setError('Error al generar el documento.'); return }
       const blob = await res.blob()
@@ -73,13 +100,17 @@ export default function Contrato() {
 
   const fg = (label, child, req) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 9 }}>
-      <label style={{ fontSize: 10, fontWeight: 500, color: '#4A5568', textTransform: 'uppercase', letterSpacing: '.05em' }}>{label}{req && <span style={{ color: '#C9A84C', marginLeft: 2 }}>*</span>}</label>
+      <label style={{ fontSize: 10, fontWeight: 500, color: '#4A5568', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+        {label}{req && <span style={{ color: '#C9A84C', marginLeft: 2 }}>*</span>}
+      </label>
       {child}
     </div>
   )
 
+  const inpStyle = { width: '100%', fontSize: 13, padding: '7px 10px', border: '0.5px solid rgba(10,22,40,.2)', borderRadius: 6, fontFamily: 'inherit' }
+
   const panels = [
-    // 0 Inmueble
+    // 0 — Inmueble + Ocupantes
     <div key={0}>
       {fg('Domicilio completo', <input {...inp('inmueble','dom')} placeholder="Calle N, piso/dpto, Localidad"/>, true)}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
@@ -94,10 +125,59 @@ export default function Contrato() {
         {fg('Sup. cubierta (m2)', <input {...inp('inmueble','scub')} placeholder="Ej: 65"/>)}
         {fg('Partida inmobiliaria', <input {...inp('inmueble','partida')} placeholder="N de partida"/>)}
       </div>
-      {fg('Ocupantes declarados', <input {...inp('inmueble','ocupantes')} placeholder="Nombres de quienes habitaran"/>, true)}
+
+      <div style={{ borderTop: '0.5px solid rgba(10,22,40,.1)', paddingTop: '1rem', marginTop: '.5rem' }}>
+        <div style={{ fontSize: 12, fontWeight: 500, color: '#0A1628', marginBottom: '.25rem' }}>
+          Ocupantes del inmueble <span style={{ color: '#C9A84C' }}>*</span>
+        </div>
+        <div style={{ fontSize: 11, color: '#4A5568', marginBottom: '.75rem', lineHeight: 1.5 }}>
+          Carga el nombre, apellido y DNI de cada persona que habitara el inmueble.
+          Si son varios, usa el boton para agregar mas.
+        </div>
+
+        {data.ocupantes.map((oc, idx) => (
+          <div key={idx} style={{ background: '#F8F9FB', border: '0.5px solid rgba(10,22,40,.1)', borderRadius: 8, padding: '.75rem', marginBottom: '.6rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.6rem' }}>
+              <div style={{ fontSize: 11, fontWeight: 500, color: '#C9A84C', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                Ocupante {idx + 1}
+              </div>
+              {idx > 0 && (
+                <button onClick={() => quitarOcupante(idx)}
+                  style={{ fontSize: 11, color: '#A32D2D', cursor: 'pointer', border: 'none', background: 'transparent', fontFamily: 'inherit' }}>
+                  Quitar
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <label style={{ fontSize: 10, fontWeight: 500, color: '#4A5568', textTransform: 'uppercase', letterSpacing: '.05em' }}>Nombre y apellido</label>
+                <input value={oc.nom} onChange={e => updOcupante(idx, 'nom', e.target.value)}
+                  placeholder="Ej: Juan Perez" style={inpStyle}/>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <label style={{ fontSize: 10, fontWeight: 500, color: '#4A5568', textTransform: 'uppercase', letterSpacing: '.05em' }}>DNI</label>
+                <input value={oc.dni} onChange={e => updOcupante(idx, 'dni', e.target.value)}
+                  placeholder="Ej: 30.123.456" style={inpStyle}/>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        <button onClick={agregarOcupante}
+          style={{ width: '100%', padding: '8px', border: '1.5px dashed rgba(201,168,76,.5)', borderRadius: 8, background: '#F5EDD8', color: '#C9A84C', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+          + Agregar otro ocupante
+        </button>
+
+        {data.ocupantes.filter(o => o.nom.trim()).length > 0 && (
+          <div style={{ marginTop: '.65rem', padding: '.6rem .85rem', background: '#fff', border: '0.5px solid rgba(10,22,40,.1)', borderRadius: 6, fontSize: 11, color: '#4A5568' }}>
+            <strong style={{ color: '#0A1628' }}>Como figurara en el contrato:</strong><br/>
+            {textoOcupantes()}
+          </div>
+        )}
+      </div>
     </div>,
 
-    // 1 Locador
+    // 1 — Locador
     <div key={1}>
       {fg('Apellido y nombre completo', <input {...inp('locador','nom')} placeholder="Tal como figura en el DNI"/>, true)}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
@@ -112,7 +192,7 @@ export default function Contrato() {
       </div>
     </div>,
 
-    // 2 Locatario
+    // 2 — Locatario
     <div key={2}>
       {fg('Apellido y nombre completo', <input {...inp('locatario','nom')} placeholder="Tal como figura en el DNI"/>, true)}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
@@ -127,7 +207,7 @@ export default function Contrato() {
       </div>
     </div>,
 
-    // 3 Garantia
+    // 3 — Garante
     <div key={3}>
       <div style={{ marginBottom: 10 }}>
         <label style={{ fontSize: 10, fontWeight: 500, color: '#4A5568', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 6 }}>Tipo de garantia</label>
@@ -140,14 +220,14 @@ export default function Contrato() {
           ))}
         </div>
       </div>
-      {fg('Nombre del garante', <input {...inp('garante','nom')} placeholder="Apellido y nombre"/>, true)}
+      {fg('Nombre del garante 1', <input {...inp('garante','nom')} placeholder="Apellido y nombre"/>, true)}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
-        {fg('DNI del garante', <input {...inp('garante','dni')} placeholder="XX.XXX.XXX"/>)}
+        {fg('DNI garante 1', <input {...inp('garante','dni')} placeholder="XX.XXX.XXX"/>)}
         {fg('Domicilio', <input {...inp('garante','dom')} placeholder="Calle N, Localidad"/>)}
       </div>
     </div>,
 
-    // 4 Contrato
+    // 4 — Contrato
     <div key={4}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
         {fg('Canon mensual', <input {...inp('contrato','canon')} placeholder="Ej: 280000" type="number"/>, true)}
@@ -169,7 +249,7 @@ export default function Contrato() {
       </div>
     </div>,
 
-    // 5 Clausulas
+    // 5 — Clausulas
     <div key={5}>
       <p style={{ fontSize: 12, color: '#4A5568', marginBottom: 12 }}>Selecciona las clausulas opcionales para incluir en el contrato:</p>
       {[
@@ -183,14 +263,14 @@ export default function Contrato() {
         <div key={cl.id} onClick={() => setData(p => ({ ...p, clausulas: { ...p.clausulas, [cl.id]: !p.clausulas[cl.id] } }))}
           style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '.65rem .85rem', border: data.clausulas[cl.id] ? '1.5px solid #C9A84C' : '0.5px solid rgba(10,22,40,.1)', borderRadius: 8, background: data.clausulas[cl.id] ? '#F5EDD8' : '#F8F9FB', cursor: 'pointer', marginBottom: 7 }}>
           <div style={{ width: 16, height: 16, borderRadius: 4, border: data.clausulas[cl.id] ? 'none' : '1.5px solid rgba(10,22,40,.2)', background: data.clausulas[cl.id] ? '#C9A84C' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#0A1628', flexShrink: 0 }}>
-            {data.clausulas[cl.id] ? '✓' : ''}
+            {data.clausulas[cl.id] ? 'v' : ''}
           </div>
           <span style={{ fontSize: 13, fontWeight: 500, color: '#0A1628' }}>{cl.n}</span>
         </div>
       ))}
     </div>,
 
-    // 6 Descargar
+    // 6 — Descargar
     <div key={6}>
       <div style={{ background: '#0A1628', borderRadius: 12, padding: '1.5rem', textAlign: 'center', marginBottom: '1rem' }}>
         <div style={{ fontSize: 16, fontWeight: 500, color: '#fff', marginBottom: '.35rem' }}>Contrato listo para generar</div>
