@@ -109,8 +109,22 @@ export default function Contrato() {
     const err = validations[step]()
     if (err) { setValErr(err); return }
     setValErr('')
-    if (step === STEPS.length - 1) { setPreview(true); return }
+    if (step === STEPS.length - 1) { verPreview(); return }
     setStep(p => p + 1)
+  }
+
+  async function verPreview() {
+    setLoading(true); setError("")
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { router.push("/login"); return }
+    try {
+      const payload = { ...data, inmueble_ocupantes_texto: textoOc(), inventario_files: undefined, mascotas_files: undefined }
+      const res = await fetch("/api/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ datos: payload }) })
+      if (!res.ok) { const e = await res.json(); setError(e.error || "Error al generar la vista previa."); setLoading(false); return }
+      const { viewerUrl } = await res.json()
+      window.open(viewerUrl, "_blank")
+    } catch { setError("Error de conexion.") }
+    setLoading(false)
   }
 
   async function descargar(fmt) {
@@ -466,8 +480,11 @@ export default function Contrato() {
       </div>
       <div style={{ display:'flex', justifyContent:'space-between' }}>
         <button onClick={()=>{setValErr('');setStep(p=>Math.max(0,p-1))}} style={{ visibility:step===0?'hidden':'visible', padding:'8px 18px', borderRadius:8, border:'0.5px solid rgba(10,22,40,.2)', background:'#fff', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'inherit' }}>Anterior</button>
-        <button onClick={siguiente} style={{ padding:'9px 22px', borderRadius:8, border:'none', background:'#0A1628', color:'#fff', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'inherit' }}>{step===STEPS.length-1?'Ver vista previa del contrato':'Siguiente'}</button>
+        <button onClick={siguiente} style={{ padding:'9px 22px', borderRadius:8, border:'none', background:'#0A1628', color:'#fff', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:'inherit' }}>{step===STEPS.length-1?'Ver vista previa real':'Siguiente'}</button>
       </div>
     </div>
   </div>
 }
+
+
+
